@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализатор английских слов (демо, без словаря)</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #f0f4f8;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            padding: 24px;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-top: 0;
+            color: #1e3c72;
+        }
+        .sub {
+            color: #2c5282;
+            margin-bottom: 20px;
+            border-left: 4px solid #3182ce;
+            padding-left: 12px;
+        }
+        textarea {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            font-family: monospace;
+            border: 2px solid #cbd5e0;
+            border-radius: 16px;
+            resize: vertical;
+            background: #fefefe;
+        }
+        button {
+            background: #2b6cb0;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 40px;
+            margin: 16px 0;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover {
+            background: #2c5282;
+            transform: scale(1.02);
+        }
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 20px 0;
+            background: #edf2f7;
+            padding: 16px;
+            border-radius: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 8px 16px;
+            min-width: 80px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-level {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        .stat-count {
+            font-size: 1.8rem;
+            font-weight: 800;
+        }
+        .result-area {
+            background: #f9fafb;
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            margin-top: 16px;
+            line-height: 1.7;
+        }
+        .word-span {
+            display: inline-block;
+            margin: 2px 1px;
+            padding: 2px 5px;
+            border-radius: 12px;
+            font-size: 1rem;
+        }
+        .unknown { background-color: #e2e8f0; border-bottom: 2px solid #718096; }
+        footer {
+            margin-top: 24px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 Анализатор уровня английских слов (Демо-версия)</h1>
+    <div class="sub">Это тестовая версия без внешней базы данных. Все слова помечаются как «неизвестные» (серый цвет).<br>
+    Если вы видите эту страницу, значит сайт работает!</div>
+    
+    <textarea id="inputText" rows="8" placeholder="Вставьте любой текст на английском..."></textarea>
+    <div><button id="analyzeBtn">🔍 Анализировать текст</button></div>
+    
+    <div id="statsPanel" class="stats" style="display: none;"></div>
+    
+    <h3>📝 Результат с подсветкой уровней:</h3>
+    <div id="resultArea" class="result-area">Введите текст и нажмите кнопку.</div>
+    <footer>⚡ Словарь отключен — все слова показываются как неизвестные. Это нужно только для проверки работы сайта.</footer>
+</div>
+
+<script>
+    // Функция анализа текста (без словаря, все слова unknown)
+    function analyzeText(text) {
+        // Разбиваем на токены (слова и знаки препинания)
+        const tokens = text.match(/\b[\w']+(?:-\w+)*\b|\S/g) || [];
+        const resultTokens = [];
+        let stats = { unknown: 0 };
+        
+        for (let token of tokens) {
+            if (/^[a-zA-Z']+$/.test(token)) {
+                // Любое слово считается неизвестным
+                stats.unknown++;
+                resultTokens.push({ text: token, level: 'unknown' });
+            } else {
+                // Пунктуация
+                resultTokens.push({ text: token, level: null });
+            }
+        }
+        return { tokens: resultTokens, stats: stats };
+    }
+    
+    // Рендер раскрашенного текста
+    function renderResult(tokens) {
+        let html = '';
+        for (let t of tokens) {
+            if (t.level === null) {
+                html += t.text;
+            } else {
+                html += `<span class="word-span ${t.level}" title="Уровень: неизвестен">${escapeHtml(t.text)}</span>`;
+            }
+        }
+        return html;
+    }
+    
+    function escapeHtml(str) {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    function displayStats(stats) {
+        const levels = ['unknown'];
+        const levelNames = {'unknown':'Неизвестный'};
+        let html = '';
+        for (let lvl of levels) {
+            let count = stats[lvl] || 0;
+            html += `
+                <div class="stat-card">
+                    <div class="stat-level" style="color:#718096">${lvl} ${levelNames[lvl]}</div>
+                    <div class="stat-count">${count}</div>
+                </div>
+            `;
+        }
+        return html;
+    }
+    
+    // Обработчик кнопки
+    document.getElementById('analyzeBtn').addEventListener('click', () => {
+        const textarea = document.getElementById('inputText');
+        const text = textarea.value;
+        if (!text.trim()) {
+            alert('Пожалуйста, введите текст для анализа.');
+            return;
+        }
+        const { tokens, stats } = analyzeText(text);
+        const coloredHtml = renderResult(tokens);
+        document.getElementById('resultArea').innerHTML = coloredHtml;
+        const statsHtml = displayStats(stats);
+        const statsPanel = document.getElementById('statsPanel');
+        statsPanel.innerHTML = statsHtml;
+        statsPanel.style.display = 'flex';
+    });
+    
+    // Заполнить демо-текст при загрузке (опционально)
+    window.addEventListener('load', () => {
+        const demoText = "This is a test sentence. It shows that the site works even without a dictionary.";
+        document.getElementById('inputText').value = demoText;
+    });
+</script>
+</body>
+</html>
